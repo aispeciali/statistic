@@ -1,0 +1,121 @@
+import numpy as np
+from scipy.stats import binom,poisson
+
+n = 11
+p = 0.5
+min_heads = 7
+
+prob = 1 - binom.cdf(min_heads - 1, n, p)
+print(f"احتمال برنده شدن: {prob:.4f} ({prob*100:.2f}%)")
+
+
+
+
+
+n = 5  
+p = 2/3  
+q = 1 - p 
+
+print(f"تعداد افراد: n = {n}")
+print(f"احتمال زنده ماندن هر فرد بعد از 30 سال: p = {p:.4f}")
+print(f"احتمال عدم زنده ماندن هر فرد: q = 1-p = {q:.4f}")
+
+# الف) احتمال زنده ماندن هر پنج نفر
+prob_all_alive = binom.pmf(5, n, p)
+print(f"\nالف) احتمال زنده ماندن هر پنج نفر بعد از 30 سال:")
+print(f"   P(X=5) = C(5,5) × ({p:.4f})⁵ × ({q:.4f})⁰")
+print(f"         = 1 × {p**5:.6f} × 1")
+print(f"         = {prob_all_alive:.6f}")
+print(f"         ≈ {prob_all_alive*100:.2f}%")
+
+# ب) احتمال زنده ماندن حداقل سه نفر
+prob_at_least_three = binom.cdf(5, n, p) - binom.cdf(2, n, p)
+# یا: prob_at_least_three = P(X=3) + P(X=4) + P(X=5)
+prob_three = binom.pmf(3, n, p)
+prob_four = binom.pmf(4, n, p)
+prob_five = binom.pmf(5, n, p)
+prob_at_least_three_sum = prob_three + prob_four + prob_five
+
+print(f"\nب) احتمال زنده ماندن حداقل سه نفر بعد از 30 سال:")
+print(f"   P(X≥3) = P(X=3) + P(X=4) + P(X=5)")
+print(f"         = {prob_three:.6f} + {prob_four:.6f} + {prob_five:.6f}")
+print(f"         = {prob_at_least_three_sum:.6f}")
+print(f"         ≈ {prob_at_least_three_sum*100:.2f}%")
+
+# ج) احتمال زنده ماندن دقیقاً دو نفر
+prob_exactly_two = binom.pmf(2, n, p)
+print(f"\nج) احتمال زنده ماندن دقیقاً دو نفر بعد از 30 سال:")
+print(f"   P(X=2) = C(5,2) × ({p:.4f})² × ({q:.4f})³")
+print(f"         = 10 × {p**2:.6f} × {q**3:.6f}")
+print(f"         = {prob_exactly_two:.6f}")
+print(f"         ≈ {prob_exactly_two*100:.2f}%")
+
+# نمایش تمام احتمالات
+print(f"\nد) جدول کامل احتمالات:")
+k_values = np.arange(0, n+1)
+probabilities = binom.pmf(k_values, n, p)
+cumulative = binom.cdf(k_values, n, p)
+
+for k, prob, cum in zip(k_values, probabilities, cumulative):
+    print(f"   P(X={k}) = {prob:.6f} ({prob*100:.2f}%)  |  P(X≤{k}) = {cum:.6f}")
+
+# محاسبات اضافی برای بررسی
+total_prob = sum(probabilities)
+print(f"\nبررسی: مجموع همه احتمالات = {total_prob:.8f}")
+
+# محاسبه احتمال حداکثر دو نفر زنده باشند
+prob_at_most_two = binom.cdf(2, n, p)
+print(f"احتمال حداکثر دو نفر زنده باشند: {prob_at_most_two:.6f} ({prob_at_most_two*100:.2f}%)")
+
+print("\n" + "="*60)
+
+
+
+
+p = 3/75 
+k = 6    
+
+probability = stats.geom.pmf(k, p)
+
+print(f"احتمال اولین لامپ معیوب در آزمایش {k}ام:")
+print(f"P(X={k}) = {probability:.6f}")
+print(f"درصد: {probability*100:.4f}%")
+
+lambda_val = 1  
+
+print("="*50)
+print("محاسبه احتمالات خرابی کامپیوتر با توزیع پواسن")
+print(f"میانگین خرابی در ۴ ماه: λ = {lambda_val}")
+print("="*50)
+
+
+# الف) احتمال خراب نشدن در ۴ ماه (k=0)
+prob_a = poisson.pmf(0, lambda_val)
+print(f"\nالف) احتمال خراب نشدن در مدت ۴ ماه:")
+print(f"   P(X=0) = {prob_a:.6f}")
+print(f"   ≈ {prob_a*100:.2f}%")
+
+# ب) احتمال یک بار خراب شدن در ۴ ماه (k=1)
+prob_b = poisson.pmf(1, lambda_val)
+print(f"\nب) احتمال یک بار خراب شدن در ۴ ماه:")
+print(f"   P(X=1) = {prob_b:.6f}")
+print(f"   ≈ {prob_b*100:.2f}%")
+
+# ج) احتمال دو بار خراب شدن در ۴ ماه (k=2)
+prob_c = poisson.pmf(2, lambda_val)
+print(f"\nج) احتمال دو بار خراب شدن در ۴ ماه:")
+print(f"   P(X=2) = {prob_c:.6f}")
+print(f"   ≈ {prob_c*100:.2f}%")
+
+# د) احتمال سه بار خراب شدن در ۴ ماه (k=3)
+prob_d = poisson.pmf(3, lambda_val)
+print(f"\nد) احتمال سه بار خراب شدن در ۴ ماه:")
+print(f"   P(X=3) = {prob_d:.6f}")
+print(f"   ≈ {prob_d*100:.2f}%")
+
+# جمع احتمالات برای بررسی
+total_prob = prob_a + prob_b + prob_c + prob_d
+print(f"\nجمع احتمالات (k=0 تا 3): {total_prob:.6f}")
+print(f"احتمال ۴ خرابی یا بیشتر: {1 - total_prob:.6f}")
+
+print("\n" + "="*50)
