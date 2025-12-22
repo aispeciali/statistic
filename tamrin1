@@ -1,0 +1,258 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime
+import warnings
+warnings.filterwarnings('ignore')
+
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, LabelEncoder, OneHotEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.impute import SimpleImputer
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+
+print("=" * 50)
+print("مرحله 1: وارد کردن داده‌ها و بررسی کلی")
+print("=" * 50)
+
+df = pd.read_csv('loans.csv')
+
+print(f"ابعاد داده‌ها: {df.shape}")
+print(f"\nنمونه‌ای از داده‌ها:")
+print(df.head())
+print(f"\nاطلاعات ستون‌ها:")
+print(df.info())
+print(f"\nآمار توصیفی:")
+print(df.describe())
+
+print("\n" + "=" * 50)
+print("مرحله 2: تشخیص و پردازش مقادیر گمشده")
+print("=" * 50)
+
+missing_values = df.isnull().sum()
+print(f"مقادیر گمشده در هر ستون:\n{missing_values[missing_values > 0]}")
+
+if missing_values.any():
+ 
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    categorical_cols = df.select_dtypes(include=['object']).columns
+    
+ 
+    numeric_imputer = SimpleImputer(strategy='mean')
+    categorical_imputer = SimpleImputer(strategy='most_frequent')
+ 
+    df[numeric_cols] = numeric_imputer.fit_transform(df[numeric_cols])
+    df[categorical_cols] = categorical_imputer.fit_transform(df[categorical_cols])
+    print("مقادیر گمشده پردازش شدند.")
+else:
+    print("هیچ مقدار گمشده‌ای یافت نشد.")
+
+
+print("\n" + "=" * 50)
+print("مرحله 3: تشخیص و پردازش مقادیر پرت")
+print("=" * 50)
+
+def detect_outliers_iqr(data, column):
+    """تشخیص مقادیر پرت با روش IQR"""
+    Q1 = data[column].quantile(0.25)
+    Q3 = data[column].quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    
+    outliers = data[(data[column] < lower_bound) | (data[column] > upper_bound)]
+    return outliers, lower_bound, upper_bound
+
+
+numeric_columns = ['loan_amount', 'rate']
+
+print("بررسی مقادیر پرت در ستون‌های عددی:")
+for col in numeric_columns:
+    outliers, lower, upper = detect_outliers_iqr(df, col)
+    print(f"\nستون '{col}':")
+    print(f"  مرز پایین: {lower:.2f}, مرز بالا: {upper:.2f}")
+    print(f"  تعداد مقادیر پرت: {len(outliers)} ({len(outliers)/len(df)*100:.1f}%)")
+
+    df[col] = np.where(df[col] < lower, lower, df[col])
+    df[col] = np.where(df[col] > upper, upper, df[col])
+    print(f"  مقادیر پرت با روش Winsorization پردازش شدند.")
+
+print("\n" + "=" * 50)
+print("مرحله 4: تبدیل متغیرها")
+print("=" * 50)
+
+df['loan_start'] = pd.to_datetime(df['loan_start'])
+df['loan_end'] = pd.to_datetime(df['loan_end'])
+
+df['loan_duration_days'] = (df['loan_end'] - df['loan_start']).dt.days
+
+print("بررسی چولگی (Skewness) متغیرهای عددی:")
+numeric_cols_for_skew = ['loan_amount', 'rate', 'loan_duration_days']
+
+for col in numeric_cols_for_skew:
+    skewness = df[col].skew()
+    print(f"  {col}: skewness = {skewness:.2f}")
+    
+ 
+    if abs(skewness) > 1:
+        
+        df[f'{col}_log'] = np.log1p(df[col])
+        print(f"    تبدیل لگاریتمی اعمال شد: {col}_log ایجاد شد.")
+
+
+print("\n" + "=" * 50)
+print("مرحله 5: مقیاس‌بندی متغیرهای عددی")
+print("=" * 50)
+
+numeric_features = ['loan_amount', 'rate', 'loan_duration_days']
+
+
+scaler_standard = StandardScaler()
+scaler_minmax = MinMaxScaler()
+
+df_standardized = df.copy()
+df_standardized[numeric_features] = scaler_standard.fit_transform(df[numeric_features])
+
+df_normalized = df.copy()
+df_normalized[numeric_features] = scaler_minmax.fit_transform(df[numeric_features])
+
+print("مقیاس‌بندی انجام شد:")
+print("  - استانداردسازی: mean=0, std=1")
+print("  - نرمال‌سازی: range=[0, 1]")
+
+df_scaled = df_standardized.copy()
+
+
+print("\n" + "=" * 50)
+print("مرحله 6: رمزگذاری متغیرهای دسته‌ای")
+print("=" * 50)
+
+
+categorical_features = ['loan_type']
+
+print("رمزگذاری متغیرهای دسته‌ای:")
+for feature in categorical_features:
+    print(f"\nستون '{feature}':")
+    print(f"  مقادیر منحصربه‌فرد: {df[feature].unique()}")
+    
+    
+    le = LabelEncoder()
+    df_scaled[f'{feature}_label'] = le.fit_transform(df[feature])
+    print(f"  Label Encoding انجام شد (ستون جدید: {feature}_label)")
+    
+    ohe = OneHotEncoder(sparse_output=False, drop='first')
+    ohe_result = ohe.fit_transform(df[[feature]])
+    ohe_columns = [f"{feature}_{cat}" for cat in le.classes_[1:]]
+    
+    ohe_df = pd.DataFrame(ohe_result, columns=ohe_columns, index=df.index)
+    df_scaled = pd.concat([df_scaled, ohe_df], axis=1)
+    print(f"  One-Hot Encoding انجام شد ({len(ohe_columns)} ستون جدید ایجاد شد)")
+
+
+print("\n" + "=" * 50)
+print("مرحله 7: ایجاد متغیرهای جدید")
+print("=" * 50)
+
+
+df_scaled['loan_amount_rate_interaction'] = df_scaled['loan_amount'] * df_scaled['rate']
+
+
+df_scaled['loan_amount_squared'] = df_scaled['loan_amount'] ** 2
+
+
+df_scaled['loan_start_year'] = df['loan_start'].dt.year
+df_scaled['loan_start_month'] = df['loan_start'].dt.month
+df_scaled['loan_start_quarter'] = df['loan_start'].dt.quarter
+
+
+df_scaled['amount_per_day'] = df_scaled['loan_amount'] / df_scaled['loan_duration_days']
+
+df_scaled['loan_amount_category'] = pd.cut(
+    df['loan_amount'], 
+    bins=3, 
+    labels=['low', 'medium', 'high']
+)
+
+print("متغیرهای جدید ایجاد شد:")
+new_features = [
+    'loan_amount_rate_interaction',
+    'loan_amount_squared',
+    'loan_start_year',
+    'loan_start_month',
+    'loan_start_quarter',
+    'amount_per_day',
+    'loan_amount_category'
+]
+for feature in new_features:
+    print(f"  - {feature}")
+
+
+print("\n" + "=" * 50)
+print("مرحله 8: تقسیم داده به مجموعه آموزش و آزمون")
+print("=" * 50)
+
+
+features_to_drop = ['client_id', 'loan_id', 'loan_start', 'loan_end']
+X = df_scaled.drop(columns=features_to_drop + ['repaid'])
+
+
+y = df_scaled['repaid']
+
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+print(f"تقسیم داده‌ها انجام شد:")
+print(f"  X_train shape: {X_train.shape}")
+print(f"  X_test shape: {X_test.shape}")
+print(f"  y_train shape: {y_train.shape}")
+print(f"  y_test shape: {y_test.shape}")
+
+print(f"\nتوزیع کلاس در مجموعه آموزش:")
+print(y_train.value_counts(normalize=True))
+print(f"\nتوزیع کلاس در مجموعه آزمون:")
+print(y_test.value_counts(normalize=True))
+
+
+print("\n" + "=" * 50)
+print("ذخیره داده‌های پردازش شده")
+print("=" * 50)
+
+
+df_scaled.to_csv('loans_processed.csv', index=False)
+X_train.to_csv('X_train.csv', index=False)
+X_test.to_csv('X_test.csv', index=False)
+y_train.to_csv('y_train.csv', index=False)
+y_test.to_csv('y_test.csv', index=False)
+
+print("داده‌های پردازش شده ذخیره شدند:")
+print("  - loans_processed.csv: کل داده‌های پردازش شده")
+print("  - X_train.csv, X_test.csv: ویژگی‌های آموزش و آزمون")
+print("  - y_train.csv, y_test.csv: برچسب‌های آموزش و آزمون")
+
+
+print("\n" + "=" * 50)
+print("گزارش نهایی پیش‌پردازش")
+print("=" * 50)
+
+print(f"\nمراحل انجام شده:")
+print("  1.  وارد کردن داده‌ها و بررسی کلی")
+print("  2.  پردازش مقادیر گمشده")
+print("  3.  تشخیص و پردازش مقادیر پرت")
+print("  4.  تبدیل متغیرها (تاریخ و تبدیل لگاریتمی)")
+print("  5.  مقیاس‌بندی متغیرهای عددی")
+print("  6.  رمزگذاری متغیرهای دسته‌ای")
+print("  7.  ایجاد متغیرهای جدید")
+print("  8.  تقسیم داده به آموزش و آزمون")
+
+print(f"\nاطلاعات مجموعه داده نهایی:")
+print(f"  تعداد نمونه‌ها: {len(df_scaled)}")
+print(f"  تعداد ویژگی‌ها پس از پردازش: {X_train.shape[1]}")
+print(f"  توزیع کلاس هدف (repaid):")
+print(f"    پرداخت شده (1): {sum(y) / len(y) * 100:.1f}%")
+print(f"    پرداخت نشده (0): {(1 - sum(y) / len(y)) * 100:.1f}%")
+
+print(f"\nفایل‌های خروجی ایجاد شده:")
+print("  - loans_processed.csv: داده‌های کاملاً پردازش شده")
+print("  - X_train.csv, X_test.csv: مجموعه ویژگی‌ها")
+print("  - y_train.csv, y_test.csv: مجموعه برچسب‌ها")
